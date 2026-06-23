@@ -291,9 +291,6 @@ function seedData() {
     VALUES (@id, @product_id, @user_id, @author, @initial, @avatar_color, @date, @rating, @content, @helpful, @replies)
   `);
 
-  // ✅ 변경: photo_reviews 테이블 대신, 기존 리뷰(r1, r2, r3, r6)에
-  //    review_images로 사진을 연결. 이렇게 해야 전체 리뷰 목록 / 포토리뷰
-  //    양쪽에서 author/date/content가 함께 자동으로 노출됨.
   const insertReviewImage = db.prepare(`
     INSERT INTO review_images (review_id, url) VALUES (@review_id, @url)
   `);
@@ -313,7 +310,7 @@ function seedData() {
         rating: 5,
         content:
           "원룸에 살아서 큰 세탁기는 부담스러웠는데 사이즈가 딱이에요! 소음도 적어서 퇴근하고 밤에 돌려도 눈치 안 보입니다.",
-        helpful: 24, // ✅ 기존 photo_reviews의 likes(24) 값을 helpful로 이전
+        helpful: 24,
         replies: 0,
       },
       {
@@ -327,7 +324,7 @@ function seedData() {
         rating: 4,
         content:
           "디자인이 깔끔해서 화장실 구석에 둬도 예뻐요. 다만 용량이 작아서 이불 빨래는 코인세탁소 가야하는게 조금 아쉽네요.",
-        helpful: 12, // ✅ 기존 likes(12) 이전
+        helpful: 12,
         replies: 0,
       },
       {
@@ -341,7 +338,7 @@ function seedData() {
         rating: 5,
         content:
           "맨날 배달 시켜먹다가 식비 아끼려고 샀는데 대만족입니다. 딱 한두 끼 먹을 양만 할 수 있어서 밥이 남아서 버릴 일이 없어요.",
-        helpful: 45, // ✅ 기존 likes(45) 이전
+        helpful: 45,
         replies: 0,
       },
       {
@@ -383,7 +380,7 @@ function seedData() {
         rating: 5,
         content:
           "회전판 있는거 쓰다가 넘어왔는데 진짜 편합니다. 청소도 물티슈로 쓱 닦으면 끝입니다.",
-        helpful: 89, // ✅ 기존 likes(89) 이전
+        helpful: 89,
         replies: 0,
       },
       {
@@ -417,7 +414,6 @@ function seedData() {
     ];
     for (const r of reviews) insertReview.run(r);
 
-    // ✅ 변경: photos 배열 → photoImages 배열 (review_id로 기존 리뷰와 연결)
     const photoImages = [
       {
         review_id: "r1",

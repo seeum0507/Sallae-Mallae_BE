@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../database");
 const authMiddleware = require("../middleware/auth");
+const { optionalAuthMiddleware } = require("../middleware/auth");
 
 router.get("/", (req, res) => {
   const { q, category } = req.query;
@@ -21,14 +22,14 @@ router.get("/", (req, res) => {
   res.json(products.map((p) => formatProduct(p)));
 });
 
-router.get("/:id", (req, res) => {
+router.get("/:id", optionalAuthMiddleware, (req, res) => {
   const product = db
     .prepare("SELECT * FROM products WHERE id = ?")
     .get(req.params.id);
   if (!product) {
     return res.status(404).json({ error: "상품을 찾을 수 없습니다." });
   }
-  res.json(formatProduct(product, true));
+  res.json(formatProduct(product, true, req.user?.id));
 });
 
 router.get("/:id/like", authMiddleware, (req, res) => {
@@ -68,7 +69,7 @@ router.post("/:id/like", authMiddleware, (req, res) => {
   }
 });
 
-function formatProduct(p, includeReviews = false) {
+function formatProduct(p, includeReviews = false, currentUserId = null) {
   const allReviews = db
     .prepare("SELECT rating FROM reviews WHERE product_id = ?")
     .all(p.id);
@@ -97,8 +98,6 @@ function formatProduct(p, includeReviews = false) {
       .map((s) => s.sentence),
   }));
 
-  // ✅ 변경: 사진을 review_id 기준으로 그룹핑해서
-  //    "한 사람(한 리뷰)이 올린 사진들"을 하나의 카드(urls 배열)로 묶음
   const photoRows = db
     .prepare(
       `SELECT ri.id as imageId, ri.review_id as reviewId, ri.url,
@@ -158,17 +157,27 @@ function formatProduct(p, includeReviews = false) {
         "SELECT * FROM reviews WHERE product_id = ? ORDER BY helpful DESC"
       )
       .all(p.id)
-      .map((r) => formatReview(r));
+      .map((r) => formatReview(r, currentUserId));
   }
 
   return formatted;
 }
 
-function formatReview(r) {
+function formatReview(r, currentUserId) {
   const images = db
     .prepare("SELECT url FROM review_images WHERE review_id = ?")
     .all(r.id)
     .map((i) => i.url);
+
+  let likedByMe = false;
+  if (currentUserId) {
+    const liked = db
+      .prepare(
+        "SELECT id FROM review_helpful WHERE review_id = ? AND user_id = ?"
+      )
+      .get(r.id, currentUserId);
+    likedByMe = !!liked;
+  }
 
   return {
     id: r.id,
@@ -181,6 +190,7 @@ function formatReview(r) {
     helpful: r.helpful,
     replies: r.replies,
     images,
+    likedByMe,
   };
 }
 

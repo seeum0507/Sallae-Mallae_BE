@@ -6,7 +6,6 @@ const { optionalAuthMiddleware } = require("../middleware/auth");
 const { runAIAnalysis } = require("../services/aiAnalysis");
 
 // 리뷰 목록 (이미지 포함, 정렬 지원)
-// ✅ optionalAuthMiddleware로 변경: 로그인 상태면 likedByMe를 같이 내려줌
 router.get("/product/:productId", optionalAuthMiddleware, (req, res) => {
   const { sort = "helpful" } = req.query;
 
@@ -98,7 +97,7 @@ router.post("/", authMiddleware, async (req, res) => {
   );
 });
 
-// ✅ 도움이 돼요 +1 — 로그인 필요, 같은 유저가 같은 리뷰에 중복으로 못 누르게 막음
+// 도움이 돼요 +1 — 로그인 필요, 중복 방지
 router.patch("/:id/helpful", authMiddleware, (req, res) => {
   const review = db
     .prepare("SELECT * FROM reviews WHERE id = ?")
@@ -115,7 +114,6 @@ router.patch("/:id/helpful", authMiddleware, (req, res) => {
     .get(req.params.id, req.user.id);
 
   if (existing) {
-    // 이미 누른 상태면 그냥 현재 값을 그대로 반환 (중복 카운트 방지)
     return res.json({ success: true, helpful: review.helpful, liked: true });
   }
 
@@ -200,7 +198,6 @@ router.post("/:id/comments", authMiddleware, (req, res) => {
   });
 });
 
-// ✅ formatReview에 currentUserId를 받아서 likedByMe를 함께 내려줌
 function formatReview(r, currentUserId) {
   const images = db
     .prepare("SELECT url FROM review_images WHERE review_id = ?")
