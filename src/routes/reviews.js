@@ -2,29 +2,34 @@ const express = require("express");
 const router = express.Router();
 const db = require("../database");
 const authMiddleware = require("../middleware/auth");
+const { optionalAuthMiddleware } = require("../middleware/auth");
+const { runAIAnalysis } = require("../services/aiAnalysis");
 
-// 리뷰 목록 (이미지 포함)
-router.get("/product/:productId", (req, res) => {
+// 리뷰 목록 (이미지 포함, 정렬 지원)
+// ✅ optionalAuthMiddleware로 변경: 로그인 상태면 likedByMe를 같이 내려줌
+router.get("/product/:productId", optionalAuthMiddleware, (req, res) => {
   const { sort = "helpful" } = req.query;
 
   const sortMap = {
-    helpful: "helpful DESC",
-    latest: "date DESC",
-    rating_high: "rating DESC",
-    rating_low: "rating ASC",
+    helpful: "r.helpful DESC",
+    latest: "r.date DESC",
+    rating_high: "r.rating DESC",
+    rating_low: "r.rating ASC",
   };
 
-  const orderBy = sortMap[sort] || "helpful DESC";
+  const orderBy = sortMap[sort] || "r.helpful DESC";
 
   const reviews = db
-    .prepare(`SELECT * FROM reviews WHERE product_id = ? ORDER BY ${orderBy}`)
+    .prepare(
+      `SELECT r.* FROM reviews r WHERE r.product_id = ? ORDER BY ${orderBy}`
+    )
     .all(req.params.productId);
 
-  res.json(reviews.map((r) => formatReview(r)));
+  res.json(reviews.map((r) => formatReview(r, req.user?.id)));
 });
 
-// 리뷰 작성 (로그인 필요, 이미지 URL 배열 포함)
-router.post("/", authMiddleware, (req, res) => {
+// 리뷰 작성 (로그인 필요)
+router.post("/", authMiddleware, async (req, res) => {
   const { productId, rating, content, images = [] } = req.body;
   const { id: userId, nickname: author } = req.user;
 
@@ -71,7 +76,6 @@ router.post("/", authMiddleware, (req, res) => {
       rating,
       content
     );
-    // images 배열에서 유효한 URL만 저장
     if (Array.isArray(images)) {
       for (const url of images) {
         if (url && typeof url === "string") {
@@ -88,10 +92,14 @@ router.post("/", authMiddleware, (req, res) => {
   ).run(productId);
 
   res.status(201).json({ success: true, id });
+
+  runAIAnalysis(productId).catch((err) =>
+    console.error("백그라운드 AI 분석 실패:", err.message)
+  );
 });
 
-// 도움이 돼요 +1
-router.patch("/:id/helpful", (req, res) => {
+// ✅ 도움이 돼요 +1 — 로그인 필요, 같은 유저가 같은 리뷰에 중복으로 못 누르게 막음
+router.patch("/:id/helpful", authMiddleware, (req, res) => {
   const review = db
     .prepare("SELECT * FROM reviews WHERE id = ?")
     .get(req.params.id);
@@ -100,18 +108,114 @@ router.patch("/:id/helpful", (req, res) => {
     return res.status(404).json({ error: "리뷰를 찾을 수 없습니다." });
   }
 
-  db.prepare("UPDATE reviews SET helpful = helpful + 1 WHERE id = ?").run(
+  const existing = db
+    .prepare(
+      "SELECT id FROM review_helpful WHERE review_id = ? AND user_id = ?"
+    )
+    .get(req.params.id, req.user.id);
+
+  if (existing) {
+    // 이미 누른 상태면 그냥 현재 값을 그대로 반환 (중복 카운트 방지)
+    return res.json({ success: true, helpful: review.helpful, liked: true });
+  }
+
+  const runBoth = db.transaction(() => {
+    db.prepare(
+      "INSERT INTO review_helpful (review_id, user_id) VALUES (?, ?)"
+    ).run(req.params.id, req.user.id);
+    db.prepare("UPDATE reviews SET helpful = helpful + 1 WHERE id = ?").run(
+      req.params.id
+    );
+  });
+  runBoth();
+
+  res.json({ success: true, helpful: review.helpful + 1, liked: true });
+});
+
+// 댓글 목록 조회
+router.get("/:id/comments", (req, res) => {
+  const comments = db
+    .prepare(
+      "SELECT * FROM comments WHERE review_id = ? ORDER BY created_at ASC"
+    )
+    .all(req.params.id);
+
+  res.json(
+    comments.map((c) => ({
+      id: c.id,
+      reviewId: c.review_id,
+      author: c.author,
+      initial: c.initial,
+      avatarColor: c.avatar_color,
+      content: c.content,
+      createdAt: c.created_at,
+    }))
+  );
+});
+
+// 댓글 작성 (로그인 필요)
+router.post("/:id/comments", authMiddleware, (req, res) => {
+  const { content } = req.body;
+  const { id: userId, nickname: author } = req.user;
+
+  if (!content || !content.trim()) {
+    return res.status(400).json({ error: "댓글 내용을 입력해주세요." });
+  }
+
+  const review = db
+    .prepare("SELECT id FROM reviews WHERE id = ?")
+    .get(req.params.id);
+  if (!review) {
+    return res.status(404).json({ error: "리뷰를 찾을 수 없습니다." });
+  }
+
+  const initial = author.charAt(0);
+  const colors = [
+    "bg-blue-100 text-blue-600",
+    "bg-purple-100 text-purple-600",
+    "bg-green-100 text-green-600",
+    "bg-yellow-100 text-yellow-600",
+    "bg-pink-100 text-pink-600",
+  ];
+  const avatarColor = colors[Math.floor(Math.random() * colors.length)];
+
+  const result = db
+    .prepare(
+      "INSERT INTO comments (review_id, user_id, author, initial, avatar_color, content) VALUES (?, ?, ?, ?, ?, ?)"
+    )
+    .run(req.params.id, userId, author, initial, avatarColor, content.trim());
+
+  db.prepare("UPDATE reviews SET replies = replies + 1 WHERE id = ?").run(
     req.params.id
   );
 
-  res.json({ success: true, helpful: review.helpful + 1 });
+  res.status(201).json({
+    id: result.lastInsertRowid,
+    reviewId: req.params.id,
+    author,
+    initial,
+    avatarColor,
+    content: content.trim(),
+    createdAt: new Date().toISOString(),
+  });
 });
 
-function formatReview(r) {
+// ✅ formatReview에 currentUserId를 받아서 likedByMe를 함께 내려줌
+function formatReview(r, currentUserId) {
   const images = db
     .prepare("SELECT url FROM review_images WHERE review_id = ?")
     .all(r.id)
     .map((i) => i.url);
+
+  let likedByMe = false;
+  if (currentUserId) {
+    const liked = db
+      .prepare(
+        "SELECT id FROM review_helpful WHERE review_id = ? AND user_id = ?"
+      )
+      .get(r.id, currentUserId);
+    likedByMe = !!liked;
+  }
 
   return {
     id: r.id,
@@ -124,6 +228,7 @@ function formatReview(r) {
     helpful: r.helpful,
     replies: r.replies,
     images,
+    likedByMe,
   };
 }
 

@@ -28,7 +28,8 @@ db.exec(`
     ai_negative INTEGER DEFAULT 0,
     ai_pros TEXT DEFAULT '',
     ai_cons TEXT DEFAULT '',
-    ai_conclusion TEXT DEFAULT ''
+    ai_conclusion TEXT DEFAULT '',
+    ai_analyzed_at TEXT DEFAULT NULL
   );
 
   CREATE TABLE IF NOT EXISTS reviews (
@@ -78,6 +79,19 @@ db.exec(`
     FOREIGN KEY (keyword_id) REFERENCES keywords(id)
   );
 
+  CREATE TABLE IF NOT EXISTS comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    review_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    author TEXT NOT NULL,
+    initial TEXT NOT NULL,
+    avatar_color TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (review_id) REFERENCES reviews(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
   CREATE TABLE IF NOT EXISTS photo_reviews (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     product_id TEXT NOT NULL,
@@ -86,7 +100,21 @@ db.exec(`
     likes INTEGER DEFAULT 0,
     FOREIGN KEY (product_id) REFERENCES products(id)
   );
+
+  CREATE TABLE IF NOT EXISTS review_helpful (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    review_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(review_id, user_id),
+    FOREIGN KEY (review_id) REFERENCES reviews(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
 `);
+
+try {
+  db.exec(`ALTER TABLE products ADD COLUMN ai_analyzed_at TEXT DEFAULT NULL`);
+} catch (e) {}
 
 function seedData() {
   const count = db.prepare("SELECT COUNT(*) as cnt FROM products").get();
@@ -105,11 +133,11 @@ function seedData() {
       review_count: 1247,
       recommend_count: 892,
       thumbnail: "svg-washing-machine",
-      ai_positive: 80,
-      ai_negative: 20,
-      ai_pros: "소음이 적고 세탁 성능이 좋아요.",
-      ai_cons: "이불 빨래는 어렵고 건조 기능이 없어요.",
-      ai_conclusion: "가성비 좋고 1인 가구 직장인에게 최고!",
+      ai_positive: 0,
+      ai_negative: 0,
+      ai_pros: "",
+      ai_cons: "",
+      ai_conclusion: "",
     },
     {
       id: "rc-001",
@@ -124,11 +152,11 @@ function seedData() {
       recommend_count: 2105,
       thumbnail:
         "https://images.unsplash.com/photo-1544233726-9f1d2b27be8b?w=600&q=80",
-      ai_positive: 92,
-      ai_negative: 8,
-      ai_pros: "밥이 빨리 되고 보온 기능이 훌륭해요.",
-      ai_cons: "용량이 작아 손님 올 때는 부족해요.",
-      ai_conclusion: "혼자 밥 해먹는 자취생의 필수템!",
+      ai_positive: 0,
+      ai_negative: 0,
+      ai_pros: "",
+      ai_cons: "",
+      ai_conclusion: "",
     },
     {
       id: "vc-001",
@@ -143,11 +171,11 @@ function seedData() {
       recommend_count: 1540,
       thumbnail:
         "https://images.unsplash.com/photo-1558317374-067fb5f30001?w=600&q=80",
-      ai_positive: 85,
-      ai_negative: 15,
-      ai_pros: "가볍고 흡입력이 생각보다 강해요.",
-      ai_cons: "배터리 시간이 짧고 먼지통이 작아요.",
-      ai_conclusion: "원룸 머리카락 청소용으로 가성비 갑!",
+      ai_positive: 0,
+      ai_negative: 0,
+      ai_pros: "",
+      ai_cons: "",
+      ai_conclusion: "",
     },
     {
       id: "mw-001",
@@ -162,11 +190,11 @@ function seedData() {
       recommend_count: 4200,
       thumbnail:
         "https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?w=600&q=80",
-      ai_positive: 95,
-      ai_negative: 5,
-      ai_pros: "회전판이 없어서 청소가 편하고 큰 도시락도 들어가요.",
-      ai_cons: "버튼 터치감이 조금 뻑뻑해요.",
-      ai_conclusion: "편의점 도시락 자주 먹는다면 무조건 추천!",
+      ai_positive: 0,
+      ai_negative: 0,
+      ai_pros: "",
+      ai_cons: "",
+      ai_conclusion: "",
     },
     {
       id: "af-001",
@@ -181,11 +209,11 @@ function seedData() {
       recommend_count: 1200,
       thumbnail:
         "https://images.unsplash.com/photo-1628840042765-356cda07504e?w=600&q=80",
-      ai_positive: 88,
-      ai_negative: 12,
-      ai_pros: "올스텐이라 환경호르몬 걱정 없고 세척이 편해요.",
-      ai_cons: "작동 시 소음이 약간 있는 편이에요.",
-      ai_conclusion: "냉동식품의 구원자, 자취생 삶의 질 수직 상승!",
+      ai_positive: 0,
+      ai_negative: 0,
+      ai_pros: "",
+      ai_cons: "",
+      ai_conclusion: "",
     },
     {
       id: "hm-001",
@@ -200,11 +228,11 @@ function seedData() {
       recommend_count: 650,
       thumbnail:
         "https://images.unsplash.com/photo-1632054010678-7f2e5a1a7355?w=600&q=80",
-      ai_positive: 75,
-      ai_negative: 25,
-      ai_pros: "디자인이 예쁘고 무드등 기능이 감성적이에요.",
-      ai_cons: "가습량이 적고 물통 청소가 약간 번거로워요.",
-      ai_conclusion: "침대 옆 협탁에 두기 좋은 감성템!",
+      ai_positive: 0,
+      ai_negative: 0,
+      ai_pros: "",
+      ai_cons: "",
+      ai_conclusion: "",
     },
     {
       id: "ts-001",
@@ -219,11 +247,11 @@ function seedData() {
       recommend_count: 520,
       thumbnail:
         "https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?w=600&q=80",
-      ai_positive: 82,
-      ai_negative: 18,
-      ai_pros: "디자인이 레트로하고 예뻐서 주방이 화사해져요.",
-      ai_cons: "빵 부스러기 청소가 조금 귀찮아요.",
-      ai_conclusion: "아침 식사를 즐겁게 만들어주는 예쁜 토스터!",
+      ai_positive: 0,
+      ai_negative: 0,
+      ai_pros: "",
+      ai_cons: "",
+      ai_conclusion: "",
     },
     {
       id: "cm-001",
@@ -238,16 +266,20 @@ function seedData() {
       recommend_count: 3800,
       thumbnail:
         "https://images.unsplash.com/photo-1517701550927-30cfcbef5fac?w=600&q=80",
-      ai_positive: 96,
-      ai_negative: 4,
-      ai_pros: "크기가 작아 공간 차지를 안 하고 커피 맛이 훌륭해요.",
-      ai_cons: "캡슐 비용이 은근히 많이 들어요.",
-      ai_conclusion: "홈카페 로망 실현, 카페인 중독자 필수템!",
+      ai_positive: 0,
+      ai_negative: 0,
+      ai_pros: "",
+      ai_cons: "",
+      ai_conclusion: "",
     },
   ];
 
   const insertProduct = db.prepare(`
-    INSERT INTO products VALUES (
+    INSERT INTO products (
+      id, name, brand, category, category_key,
+      price, original_price, rating, review_count, recommend_count,
+      thumbnail, ai_positive, ai_negative, ai_pros, ai_cons, ai_conclusion
+    ) VALUES (
       @id, @name, @brand, @category, @category_key,
       @price, @original_price, @rating, @review_count, @recommend_count,
       @thumbnail, @ai_positive, @ai_negative, @ai_pros, @ai_cons, @ai_conclusion
@@ -259,16 +291,11 @@ function seedData() {
     VALUES (@id, @product_id, @user_id, @author, @initial, @avatar_color, @date, @rating, @content, @helpful, @replies)
   `);
 
-  const insertKeyword = db.prepare(`
-    INSERT INTO keywords VALUES (@id, @product_id, @label, @count)
-  `);
-
-  const insertSentence = db.prepare(`
-    INSERT INTO keyword_sentences (keyword_id, sentence) VALUES (@keyword_id, @sentence)
-  `);
-
-  const insertPhoto = db.prepare(`
-    INSERT INTO photo_reviews (product_id, url, rating, likes) VALUES (@product_id, @url, @rating, @likes)
+  // ✅ 변경: photo_reviews 테이블 대신, 기존 리뷰(r1, r2, r3, r6)에
+  //    review_images로 사진을 연결. 이렇게 해야 전체 리뷰 목록 / 포토리뷰
+  //    양쪽에서 author/date/content가 함께 자동으로 노출됨.
+  const insertReviewImage = db.prepare(`
+    INSERT INTO review_images (review_id, url) VALUES (@review_id, @url)
   `);
 
   const insertAll = db.transaction(() => {
@@ -286,8 +313,8 @@ function seedData() {
         rating: 5,
         content:
           "원룸에 살아서 큰 세탁기는 부담스러웠는데 사이즈가 딱이에요! 소음도 적어서 퇴근하고 밤에 돌려도 눈치 안 보입니다.",
-        helpful: 124,
-        replies: 3,
+        helpful: 24, // ✅ 기존 photo_reviews의 likes(24) 값을 helpful로 이전
+        replies: 0,
       },
       {
         id: "r2",
@@ -300,8 +327,8 @@ function seedData() {
         rating: 4,
         content:
           "디자인이 깔끔해서 화장실 구석에 둬도 예뻐요. 다만 용량이 작아서 이불 빨래는 코인세탁소 가야하는게 조금 아쉽네요.",
-        helpful: 89,
-        replies: 1,
+        helpful: 12, // ✅ 기존 likes(12) 이전
+        replies: 0,
       },
       {
         id: "r3",
@@ -314,8 +341,8 @@ function seedData() {
         rating: 5,
         content:
           "맨날 배달 시켜먹다가 식비 아끼려고 샀는데 대만족입니다. 딱 한두 끼 먹을 양만 할 수 있어서 밥이 남아서 버릴 일이 없어요.",
-        helpful: 210,
-        replies: 5,
+        helpful: 45, // ✅ 기존 likes(45) 이전
+        replies: 0,
       },
       {
         id: "r4",
@@ -328,8 +355,8 @@ function seedData() {
         rating: 4,
         content:
           "디자인도 귀엽고 밥도 잘 됩니다. 다만 보온을 하루 이상 하면 밥이 좀 마르는 경향이 있어서 그때그때 해먹는게 좋아요.",
-        helpful: 156,
-        replies: 2,
+        helpful: 0,
+        replies: 0,
       },
       {
         id: "r5",
@@ -342,8 +369,8 @@ function seedData() {
         rating: 5,
         content:
           "방바닥에 굴러다니는 머리카락 치우는 용도로 샀는데 진짜 편해요.",
-        helpful: 345,
-        replies: 8,
+        helpful: 0,
+        replies: 0,
       },
       {
         id: "r6",
@@ -356,8 +383,8 @@ function seedData() {
         rating: 5,
         content:
           "회전판 있는거 쓰다가 넘어왔는데 진짜 편합니다. 청소도 물티슈로 쓱 닦으면 끝입니다.",
-        helpful: 560,
-        replies: 12,
+        helpful: 89, // ✅ 기존 likes(89) 이전
+        replies: 0,
       },
       {
         id: "r7",
@@ -370,8 +397,8 @@ function seedData() {
         rating: 5,
         content:
           "에어프라이어는 자취생한테 진짜 혁명입니다. 남은 치킨 데워먹을 때, 냉동 만두 구울 때 최고예요.",
-        helpful: 420,
-        replies: 7,
+        helpful: 0,
+        replies: 0,
       },
       {
         id: "r8",
@@ -384,113 +411,72 @@ function seedData() {
         rating: 5,
         content:
           "매일 아침 커피 수혈하는데 카페 가는 돈 아끼려고 샀어요. 크레마도 풍부하고 너무 맛있어요.",
-        helpful: 890,
-        replies: 15,
+        helpful: 0,
+        replies: 0,
       },
     ];
     for (const r of reviews) insertReview.run(r);
 
-    const keywords = [
-      { id: "wm-001-noise", product_id: "wm-001", label: "소음", count: 143 },
-      { id: "wm-001-size", product_id: "wm-001", label: "크기", count: 302 },
-      { id: "wm-001-power", product_id: "wm-001", label: "세탁력", count: 215 },
-      { id: "rc-001-taste", product_id: "rc-001", label: "밥맛", count: 450 },
-      { id: "rc-001-speed", product_id: "rc-001", label: "속도", count: 320 },
-      { id: "vc-001-weight", product_id: "vc-001", label: "무게", count: 520 },
+    // ✅ 변경: photos 배열 → photoImages 배열 (review_id로 기존 리뷰와 연결)
+    const photoImages = [
       {
-        id: "mw-001-cleaning",
-        product_id: "mw-001",
-        label: "청소",
-        count: 850,
-      },
-      {
-        id: "af-001-material",
-        product_id: "af-001",
-        label: "소재",
-        count: 620,
-      },
-      {
-        id: "cm-001-taste",
-        product_id: "cm-001",
-        label: "커피맛",
-        count: 1200,
-      },
-    ];
-    for (const k of keywords) insertKeyword.run(k);
-
-    const sentences = [
-      {
-        keyword_id: "wm-001-noise",
-        sentence: "밤에 돌려도 옆집에 안 들릴 정도로 조용해요.",
-      },
-      {
-        keyword_id: "wm-001-noise",
-        sentence: "원룸이라 소음 걱정했는데 생각보다 훨씬 조용해서 만족합니다.",
-      },
-      {
-        keyword_id: "wm-001-size",
-        sentence: "원룸 화장실에 쏙 들어가는 아담한 사이즈예요.",
-      },
-      {
-        keyword_id: "wm-001-power",
-        sentence: "작은데도 때가 쏙쏙 잘 빠지네요.",
-      },
-      { keyword_id: "rc-001-taste", sentence: "햇반보다 훨씬 맛있어요." },
-      {
-        keyword_id: "rc-001-speed",
-        sentence: "쾌속 취사하면 15분만에 밥이 완성돼요.",
-      },
-      {
-        keyword_id: "vc-001-weight",
-        sentence: "손목 안 아프고 너무 가벼워요.",
-      },
-      {
-        keyword_id: "mw-001-cleaning",
-        sentence: "회전판 없어서 쓱 닦기만 하면 되니 너무 편해요.",
-      },
-      {
-        keyword_id: "af-001-material",
-        sentence: "올스텐이라 안심하고 씁니다.",
-      },
-      {
-        keyword_id: "cm-001-taste",
-        sentence: "크레마가 장난 아니에요. 밖에서 사먹을 필요가 없습니다.",
-      },
-    ];
-    for (const s of sentences) insertSentence.run(s);
-
-    const photos = [
-      {
-        product_id: "wm-001",
+        review_id: "r1",
         url: "https://images.unsplash.com/photo-1582735689369-4fe89db7114c?w=400&q=80",
-        rating: 5,
-        likes: 24,
       },
       {
-        product_id: "wm-001",
+        review_id: "r2",
         url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400&q=80",
-        rating: 4,
-        likes: 12,
       },
       {
-        product_id: "rc-001",
+        review_id: "r3",
         url: "https://images.unsplash.com/photo-1544233726-9f1d2b27be8b?w=400&q=80",
-        rating: 5,
-        likes: 45,
       },
       {
-        product_id: "mw-001",
+        review_id: "r6",
         url: "https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?w=400&q=80",
-        rating: 5,
-        likes: 89,
       },
     ];
-    for (const ph of photos) insertPhoto.run(ph);
+    for (const img of photoImages) insertReviewImage.run(img);
   });
 
   insertAll();
-  console.log("✅ 초기 데이터 삽입 완료");
+  console.log("✅ 초기 데이터 삽입 완료 (AI 분석은 아직 비어있음)");
 }
 
 seedData();
+
+async function runInitialAnalysis() {
+  const { runAIAnalysis } = require("./services/aiAnalysis");
+
+  const unanalyzedProducts = db
+    .prepare(
+      `SELECT p.id FROM products p
+       WHERE p.ai_analyzed_at IS NULL
+       AND EXISTS (SELECT 1 FROM reviews r WHERE r.product_id = p.id)`
+    )
+    .all();
+
+  if (unanalyzedProducts.length === 0) return;
+
+  console.log(
+    `🤖 초기 AI 분석 대상 상품 ${unanalyzedProducts.length}개 발견, 분석을 시작합니다...`
+  );
+
+  for (const p of unanalyzedProducts) {
+    try {
+      await runAIAnalysis(p.id);
+      console.log(`  ✅ ${p.id} 분석 완료`);
+    } catch (err) {
+      console.error(`  ❌ ${p.id} 분석 실패:`, err.message);
+    }
+  }
+  console.log("🤖 초기 AI 분석 완료");
+}
+
+setImmediate(() => {
+  runInitialAnalysis().catch((err) =>
+    console.error("초기 AI 분석 중 오류:", err)
+  );
+});
+
 module.exports = db;

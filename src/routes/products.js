@@ -3,10 +3,8 @@ const router = express.Router();
 const db = require("../database");
 const authMiddleware = require("../middleware/auth");
 
-// 상품 목록
 router.get("/", (req, res) => {
   const { q, category } = req.query;
-
   let query = "SELECT * FROM products WHERE 1=1";
   const params = [];
 
@@ -14,7 +12,6 @@ router.get("/", (req, res) => {
     query += " AND category_key = ?";
     params.push(category);
   }
-
   if (q) {
     query += " AND (name LIKE ? OR brand LIKE ? OR category LIKE ?)";
     params.push(`%${q}%`, `%${q}%`, `%${q}%`);
@@ -24,20 +21,16 @@ router.get("/", (req, res) => {
   res.json(products.map((p) => formatProduct(p)));
 });
 
-// 상품 상세
 router.get("/:id", (req, res) => {
   const product = db
     .prepare("SELECT * FROM products WHERE id = ?")
     .get(req.params.id);
-
   if (!product) {
     return res.status(404).json({ error: "상품을 찾을 수 없습니다." });
   }
-
   res.json(formatProduct(product, true));
 });
 
-// 찜 상태 조회 (로그인 필요)
 router.get("/:id/like", authMiddleware, (req, res) => {
   const existing = db
     .prepare("SELECT id FROM likes WHERE user_id = ? AND product_id = ?")
@@ -45,7 +38,6 @@ router.get("/:id/like", authMiddleware, (req, res) => {
   res.json({ liked: !!existing });
 });
 
-// 찜 토글 (로그인 필요)
 router.post("/:id/like", authMiddleware, (req, res) => {
   const { id: productId } = req.params;
   const { id: userId } = req.user;
@@ -76,30 +68,21 @@ router.post("/:id/like", authMiddleware, (req, res) => {
   }
 });
 
-// ✅ 핵심: 모든 수치를 실제 reviews 테이블에서 계산
 function formatProduct(p, includeReviews = false) {
-  // 실제 리뷰 데이터 조회
   const allReviews = db
     .prepare("SELECT rating FROM reviews WHERE product_id = ?")
     .all(p.id);
 
   const actualReviewCount = allReviews.length;
 
-  // 실제 평균 별점 계산 (리뷰 없으면 seed 값 유지)
   let actualRating = p.rating;
   if (actualReviewCount > 0) {
     const totalRating = allReviews.reduce((sum, r) => sum + r.rating, 0);
     actualRating = Math.round((totalRating / actualReviewCount) * 10) / 10;
   }
 
-  // 실제 긍정/부정 비율 계산 (rating 4~5 = 긍정, 1~2 = 부정, 3 = 중립→긍정으로 포함)
-  let positive = p.ai_positive;
-  let negative = p.ai_negative;
-  if (actualReviewCount > 0) {
-    const positiveCount = allReviews.filter((r) => r.rating >= 4).length;
-    positive = Math.round((positiveCount / actualReviewCount) * 100);
-    negative = 100 - positive;
-  }
+  const positive = p.ai_positive || 0;
+  const negative = p.ai_negative || 0;
 
   const keywords = db
     .prepare("SELECT * FROM keywords WHERE product_id = ?")
@@ -114,9 +97,37 @@ function formatProduct(p, includeReviews = false) {
       .map((s) => s.sentence),
   }));
 
-  const photoReviews = db
-    .prepare("SELECT * FROM photo_reviews WHERE product_id = ?")
+  // ✅ 변경: 사진을 review_id 기준으로 그룹핑해서
+  //    "한 사람(한 리뷰)이 올린 사진들"을 하나의 카드(urls 배열)로 묶음
+  const photoRows = db
+    .prepare(
+      `SELECT ri.id as imageId, ri.review_id as reviewId, ri.url,
+              r.rating, r.content, r.author, r.date, r.initial, r.avatar_color, r.helpful
+       FROM review_images ri
+       JOIN reviews r ON ri.review_id = r.id
+       WHERE r.product_id = ?
+       ORDER BY ri.id ASC`
+    )
     .all(p.id);
+
+  const photoMap = new Map();
+  for (const row of photoRows) {
+    if (!photoMap.has(row.reviewId)) {
+      photoMap.set(row.reviewId, {
+        id: row.reviewId,
+        urls: [],
+        rating: row.rating,
+        likes: row.helpful || 0,
+        content: row.content,
+        author: row.author,
+        date: row.date,
+        initial: row.initial,
+        avatarColor: row.avatar_color,
+      });
+    }
+    photoMap.get(row.reviewId).urls.push(row.url);
+  }
+  const allPhotoReviews = Array.from(photoMap.values());
 
   const formatted = {
     id: p.id,
@@ -126,26 +137,19 @@ function formatProduct(p, includeReviews = false) {
     categoryKey: p.category_key,
     price: p.price,
     originalPrice: p.original_price,
-    rating: actualRating, // ✅ 실제 평균 별점
-    reviewCount: actualReviewCount, // ✅ 실제 리뷰 수
+    rating: actualRating,
+    reviewCount: actualReviewCount,
     recommendCount: p.recommend_count,
     thumbnail: p.thumbnail,
-    aiSentiment: {
-      positive, // ✅ 실제 별점 기반 긍정률
-      negative, // ✅ 실제 별점 기반 부정률
-    },
+    aiSentiment: { positive, negative },
     aiSummary: {
       pros: p.ai_pros,
       cons: p.ai_cons,
       conclusion: p.ai_conclusion,
     },
+    aiAnalyzed: !!p.ai_analyzed_at,
     keywords: keywordsWithSentences,
-    photoReviews: photoReviews.map((ph) => ({
-      id: ph.id,
-      url: ph.url,
-      rating: ph.rating,
-      likes: ph.likes,
-    })),
+    photoReviews: allPhotoReviews,
   };
 
   if (includeReviews) {
