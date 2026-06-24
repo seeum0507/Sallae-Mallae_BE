@@ -132,7 +132,8 @@ function seedData() {
       rating: 4.5,
       review_count: 1247,
       recommend_count: 892,
-      thumbnail: "svg-washing-machine",
+      thumbnail:
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSoJaZNNox8GAd3vNXu1skCOgghBP7hHcA5SCYiQwDsww&s",
       ai_positive: 0,
       ai_negative: 0,
       ai_pros: "",
@@ -151,7 +152,7 @@ function seedData() {
       review_count: 3421,
       recommend_count: 2105,
       thumbnail:
-        "https://images.unsplash.com/photo-1544233726-9f1d2b27be8b?w=600&q=80",
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSRx5z_D_6Oqd3fKNYDAdd1YpLZmRxy2VlQS3VYZeIu1w&s",
       ai_positive: 0,
       ai_negative: 0,
       ai_pros: "",
@@ -170,7 +171,7 @@ function seedData() {
       review_count: 2156,
       recommend_count: 1540,
       thumbnail:
-        "https://images.unsplash.com/photo-1558317374-067fb5f30001?w=600&q=80",
+        "https://media.bunjang.co.kr/product/169483986_1_1636512735_w360.jpg",
       ai_positive: 0,
       ai_negative: 0,
       ai_pros: "",
@@ -189,7 +190,7 @@ function seedData() {
       review_count: 5432,
       recommend_count: 4200,
       thumbnail:
-        "https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?w=600&q=80",
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSZP_iTV0C1LmEh2fR9pUxJYEOgM4XZOCSIai3VRqslKQ&s=10",
       ai_positive: 0,
       ai_negative: 0,
       ai_pros: "",
@@ -208,7 +209,7 @@ function seedData() {
       review_count: 1890,
       recommend_count: 1200,
       thumbnail:
-        "https://images.unsplash.com/photo-1628840042765-356cda07504e?w=600&q=80",
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTO0R5VfLmbOSL9vKqWRJB5EjXxlUhBvthf_rop7DazEA&s",
       ai_positive: 0,
       ai_negative: 0,
       ai_pros: "",
@@ -227,7 +228,7 @@ function seedData() {
       review_count: 980,
       recommend_count: 650,
       thumbnail:
-        "https://images.unsplash.com/photo-1632054010678-7f2e5a1a7355?w=600&q=80",
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTAtRSW0mG_WXoRc551FbJpIC-z4Ptf3RNiNrL-dUc38Q&s=10",
       ai_positive: 0,
       ai_negative: 0,
       ai_pros: "",
@@ -246,7 +247,7 @@ function seedData() {
       review_count: 750,
       recommend_count: 520,
       thumbnail:
-        "https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?w=600&q=80",
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRY8DA0XPmbLVJITgnluomXyff4i64BKvHI_ct8OuIC6w&s=10",
       ai_positive: 0,
       ai_negative: 0,
       ai_pros: "",
@@ -265,7 +266,7 @@ function seedData() {
       review_count: 4210,
       recommend_count: 3800,
       thumbnail:
-        "https://images.unsplash.com/photo-1517701550927-30cfcbef5fac?w=600&q=80",
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTX41PMXrUWHNequTE7AlHu4LMjazDKcqNJmYzirjBWWw&s=10",
       ai_positive: 0,
       ai_negative: 0,
       ai_pros: "",
@@ -465,6 +466,8 @@ async function runInitialAnalysis() {
     } catch (err) {
       console.error(`  ❌ ${p.id} 분석 실패:`, err.message);
     }
+    // ✅ 무료 등급 분당 한도(5건) 회피용 - 상품마다 15초 간격
+    await new Promise((r) => setTimeout(r, 15000));
   }
   console.log("🤖 초기 AI 분석 완료");
 }

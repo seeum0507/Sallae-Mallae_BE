@@ -1,13 +1,9 @@
-const Anthropic = require("@anthropic-ai/sdk");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const db = require("../database");
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // 상품 ID를 받아 리뷰를 분석하고 DB에 결과를 저장하는 공용 함수
-// - routes/ai.js (수동 분석 요청)
-// - routes/reviews.js (리뷰 작성 후 자동 재분석)
-// - database.js (서버 시작 시 초기 분석)
-// 세 곳에서 모두 이 함수 하나만 호출하도록 통합함
 async function runAIAnalysis(productId) {
   const product = db
     .prepare("SELECT * FROM products WHERE id = ?")
@@ -29,13 +25,16 @@ async function runAIAnalysis(productId) {
     .map((r, i) => `${i + 1}. [별점 ${r.rating}점] ${r.content}`)
     .join("\n");
 
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 2000,
-    messages: [
-      {
-        role: "user",
-        content: `다음 상품 리뷰들을 분석해서 JSON 형식으로만 답해주세요. 다른 텍스트나 마크다운은 절대 포함하지 마세요.
+  // ✅ Gemini 모델 설정 — JSON만 출력, 토큰 넉넉히(8192)
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    generationConfig: {
+      responseMimeType: "application/json",
+      maxOutputTokens: 8192,
+    },
+  });
+
+  const prompt = `다음 상품 리뷰들을 분석해서 JSON 형식으로만 답해주세요. 다른 텍스트나 마크다운은 절대 포함하지 마세요.
 
 상품명: ${product.name}
 리뷰 목록:
@@ -63,17 +62,30 @@ ${reviewTexts}
 }
 
 키워드는 리뷰에서 자주 언급되는 핵심 주제 3~5개를 뽑아주세요. (예: 소음, 크기, 세탁력, 디자인 등)
-sentences는 실제 리뷰에서 해당 키워드와 관련된 문장을 그대로 추출하거나 요약해서 최대 3개까지 넣어주세요.`,
-      },
-    ],
-  });
+sentences는 실제 리뷰에서 해당 키워드와 관련된 문장을 그대로 추출하거나 요약해서 최대 3개까지 넣어주세요.`;
 
-  const text = response.content[0].text.trim();
+  // ✅ 429(분당 한도)/503(서버 혼잡) 시 자동 재시도 (최대 4회, 점점 더 오래 대기)
+  let response;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      response = await model.generateContent(prompt);
+      break;
+    } catch (err) {
+      const msg = String(err?.message || "");
+      const retryable = msg.includes("429") || msg.includes("503");
+      if (!retryable || attempt === 3) throw err;
+      const waitMs = 40000 * (attempt + 1); // 40s, 80s, 120s
+      console.log(`  ⏳ 재시도 대기 ${waitMs / 1000}초... (${attempt + 1}/4)`);
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+  }
+
+  const text = response.response.text().trim();
+  // 혹시 모를 코드블록 제거
   const cleaned = text.replace(/^```json\n?/, "").replace(/\n?```$/, "");
   const result = JSON.parse(cleaned);
 
   const updateAll = db.transaction(() => {
-    // ✅ ai_analyzed_at 타임스탬프를 함께 기록해서 "분석 완료 여부"를 판단할 수 있게 함
     db.prepare(
       `UPDATE products
        SET ai_positive = ?, ai_negative = ?, ai_pros = ?, ai_cons = ?, ai_conclusion = ?, ai_analyzed_at = datetime('now')
